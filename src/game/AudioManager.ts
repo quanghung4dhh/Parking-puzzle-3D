@@ -2,7 +2,7 @@ export class AudioManager {
   private context: AudioContext | undefined;
   private master: GainNode | undefined;
   private musicTimer: number | undefined;
-  private adMuted = false;
+  private breakMuted = false;
   private unlocked = false;
   soundEnabled = true;
   musicEnabled = true;
@@ -29,8 +29,8 @@ export class AudioManager {
     }
   }
 
-  setAdMuted(muted: boolean): void {
-    this.adMuted = muted;
+  setBreakMuted(muted: boolean): void {
+    this.breakMuted = muted;
     if (this.master) {
       this.master.gain.setTargetAtTime(muted ? 0 : 0.75, this.context?.currentTime ?? 0, 0.02);
     }
@@ -40,7 +40,7 @@ export class AudioManager {
     if (!this.context) return;
     if (!visible) {
       void this.context.suspend();
-    } else if (this.unlocked && !this.adMuted) {
+    } else if (this.unlocked && !this.breakMuted) {
       void this.context.resume();
     }
   }
@@ -69,7 +69,7 @@ export class AudioManager {
     const notes = [196, 247, 294, 247, 220, 262, 330, 262];
     let step = 0;
     this.musicTimer = window.setInterval(() => {
-      if (!this.musicEnabled || this.adMuted || document.hidden) return;
+      if (!this.musicEnabled || this.breakMuted || document.hidden) return;
       this.playTone(notes[step % notes.length], 0.14, "sine", 0.018);
       step += 1;
     }, 520);
@@ -83,7 +83,7 @@ export class AudioManager {
   }
 
   private playTone(frequency: number, duration: number, type: OscillatorType, volume: number): void {
-    if (!this.soundEnabled || this.adMuted) return;
+    if (!this.soundEnabled || this.breakMuted) return;
     if (!this.context || !this.master) return;
     void this.context.resume();
 

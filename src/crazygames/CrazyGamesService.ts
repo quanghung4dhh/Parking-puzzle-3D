@@ -1,19 +1,12 @@
-import type { AdResult, ProgressData } from "../game/types";
-
-type AdCallbacks = {
-  adStarted?: () => void;
-  adFinished?: () => void;
-  adError?: (error: unknown) => void;
-};
+import type { ProgressData } from "../game/types";
 
 type CrazyGamesSdk = {
   init?: () => Promise<void> | void;
   game?: {
+    loadingStart?: () => void;
+    loadingStop?: () => void;
     gameplayStart?: () => void;
     gameplayStop?: () => void;
-  };
-  ad?: {
-    requestAd?: (type: "midgame" | "rewarded", callbacks: AdCallbacks) => Promise<void> | void;
   };
   data?: {
     getItem?: (key: string) => Promise<string | null | undefined> | string | null | undefined;
@@ -52,6 +45,24 @@ export class CrazyGamesService {
     }
   }
 
+  loadingStart(): void {
+    try {
+      this.sdk?.game?.loadingStart?.();
+    } catch (error) {
+      this.warn("loadingStart failed.", error);
+    }
+    this.log("loadingStart");
+  }
+
+  loadingStop(): void {
+    try {
+      this.sdk?.game?.loadingStop?.();
+    } catch (error) {
+      this.warn("loadingStop failed.", error);
+    }
+    this.log("loadingStop");
+  }
+
   gameplayStart(): void {
     if (this.gameplayActive) return;
     this.gameplayActive = true;
@@ -72,16 +83,6 @@ export class CrazyGamesService {
       this.warn("gameplayStop failed.", error);
     }
     this.log("gameplayStop");
-  }
-
-  async requestMidgameAd(reason: string, callbacks: AdCallbacks = {}): Promise<AdResult> {
-    this.log(`requestMidgameAd: ${reason}`);
-    return this.requestAd("midgame", callbacks);
-  }
-
-  async requestRewardedAd(rewardType: string, callbacks: AdCallbacks = {}): Promise<AdResult> {
-    this.log(`requestRewardedAd: ${rewardType}`);
-    return this.requestAd("rewarded", callbacks);
   }
 
   async saveProgress(data: ProgressData): Promise<void> {
@@ -110,58 +111,8 @@ export class CrazyGamesService {
     return this.sdk?.environment?.locale ?? navigator.language ?? "en";
   }
 
-  areAdsAvailable(): boolean {
-    return this.initialized && typeof this.sdk?.ad?.requestAd === "function";
-  }
-
-  private async requestAd(type: "midgame" | "rewarded", callbacks: AdCallbacks): Promise<AdResult> {
-    const requestAd = this.sdk?.ad?.requestAd;
-    if (!this.areAdsAvailable() || !requestAd) {
-      this.log(`${type} ad unavailable.`);
-      return { status: "unavailable" };
-    }
-
-    return new Promise<AdResult>((resolve) => {
-      let resolved = false;
-      const finish = (result: AdResult): void => {
-        if (resolved) return;
-        resolved = true;
-        window.clearTimeout(timeout);
-        resolve(result);
-      };
-      const timeout = window.setTimeout(() => {
-        callbacks.adError?.("ad-timeout");
-        finish({ status: "error", error: "ad-timeout" });
-      }, 90000);
-
-      try {
-        const maybePromise = requestAd(type, {
-          adStarted: () => {
-            this.log(`${type} ad started.`);
-            callbacks.adStarted?.();
-          },
-          adFinished: () => {
-            this.log(`${type} ad finished.`);
-            callbacks.adFinished?.();
-            finish({ status: "finished" });
-          },
-          adError: (error: unknown) => {
-            this.warn(`${type} ad error.`, error);
-            callbacks.adError?.(error);
-            finish({ status: "error", error });
-          }
-        });
-        if (maybePromise && typeof maybePromise.then === "function") {
-          maybePromise.catch((error: unknown) => {
-            callbacks.adError?.(error);
-            finish({ status: "error", error });
-          });
-        }
-      } catch (error) {
-        callbacks.adError?.(error);
-        finish({ status: "error", error });
-      }
-    });
+  isInitialized(): boolean {
+    return this.initialized;
   }
 
   private log(message: string): void {

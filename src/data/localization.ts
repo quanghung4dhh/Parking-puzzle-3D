@@ -26,8 +26,7 @@ type TranslationKey =
   | "select"
   | "selected"
   | "notEnoughCoins"
-  | "adLoading"
-  | "adsUnavailable"
+  | "breakLoading"
   | "skinClassic"
   | "skinMint"
   | "skinSunset"
@@ -60,8 +59,7 @@ const EN: Record<TranslationKey, string> = {
   select: "Select",
   selected: "Selected",
   notEnoughCoins: "Need more coins",
-  adLoading: "Ad loading",
-  adsUnavailable: "Ads unavailable",
+  breakLoading: "One moment",
   skinClassic: "Classic",
   skinMint: "Mint Pop",
   skinSunset: "Sunset",
@@ -95,8 +93,7 @@ const VI: Record<TranslationKey, string> = {
   select: "Chon",
   selected: "Dang chon",
   notEnoughCoins: "Can them xu",
-  adLoading: "Dang tai quang cao",
-  adsUnavailable: "Chua co quang cao",
+  breakLoading: "Cho mot chut",
   skinClassic: "Co dien",
   skinMint: "Bac ha",
   skinSunset: "Hoang hon",

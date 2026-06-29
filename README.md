@@ -22,9 +22,9 @@ The production output is written to `dist/` with relative asset paths from `vite
 
 Current verified build:
 
-- HTML: 0.63 kB
-- CSS: 4.90 kB minified, 1.61 kB gzip
-- JS: 526.88 kB minified, 133.28 kB gzip
+- HTML: 0.71 kB
+- CSS: 4.90 kB minified, 1.62 kB gzip
+- JS: 525.66 kB minified, 132.92 kB gzip
 
 ## Test And Validate
 
@@ -33,7 +33,7 @@ npm run test
 npm run validate-levels
 ```
 
-`npm run test` runs Vitest coverage for level validation, Grid path checks, level completion rewards, save/load normalization, CrazyGames SDK fallback, and ad-unavailable fallback.
+`npm run test` runs Vitest coverage for level validation, Grid path checks, level completion rewards, save/load normalization, CrazyGames SDK fallback, and Basic Launch no-ad fallback.
 
 `npm run validate-levels` runs `scripts/validate-levels.ts`. It validates all generated levels, prints difficulty and solution length, and exits with a non-zero code if any level is invalid or unsolvable.
 
@@ -60,7 +60,7 @@ npm run validate-levels
 - Save/load normalization: `src/game/SaveManager.ts`
 - UI and dev panel: `src/ui/UIManager.ts`, `src/ui/DevPanel.ts`
 - CrazyGames SDK wrapper: `src/crazygames/CrazyGamesService.ts`
-- Ad gating and pause handling: `src/monetization/AdManager.ts`
+- Basic/Full Launch monetization gate: `src/monetization/AdManager.ts`, `src/monetization/AdProvider.basic.ts`, `src/monetization/AdProvider.full.ts`
 
 ## Adding Levels Safely
 
@@ -76,28 +76,46 @@ The validator checks grid bounds, duplicate or overlapping cars, valid direction
 
 ## CrazyGames SDK Notes
 
-The SDK wrapper exposes:
+The SDK wrapper keeps non-ad CrazyGames functionality active:
 
 - `initCrazyGamesSdk()`
+- `loadingStart()`
+- `loadingStop()`
 - `gameplayStart()`
 - `gameplayStop()`
-- `requestMidgameAd(reason)`
-- `requestRewardedAd(rewardType)`
 - `saveProgress(data)`
 - `loadProgress()`
 - `getLocale()`
 
-If `window.CrazyGames.SDK` is missing or incomplete, the game continues with localStorage saves, hidden rewarded buttons, and development logs.
+If `window.CrazyGames.SDK` is missing or incomplete, the game continues with localStorage saves, hidden optional reward buttons, and development logs.
 
-Ad behavior:
+### Basic Launch Ads
 
-- Midgame ads are requested only after level completion.
-- No midgame ad is requested before Level 3 completion or before 2 minutes of active play.
-- Rewarded ads are user-initiated only from optional rewards such as double coins or bonus shop coins.
-- Gameplay/input is paused while ads are requested or shown.
-- Audio is muted only after `adStarted` and restored after `adFinished` or `adError`.
-- Ads are never required to solve or progress.
+Basic Launch mode is the default. Leave `VITE_ENABLE_CG_ADS` unset or set it to `false`:
+
+```bash
+VITE_ENABLE_CG_ADS=false npm run build
+```
+
+In Basic Launch mode:
+
+- No CrazyGames ad SDK APIs are called.
+- No `requestAd`, banner, responsive banner, midgame, or rewarded requests are made.
+- Optional reward methods return unavailable immediately and do not pause gameplay.
+- Double Coins and Bonus Coins buttons are hidden.
+- Hints use earned hint count only.
+- Skins unlock with coins only.
 - No external ad networks are used.
+
+### Full Launch Later
+
+After CrazyGames explicitly approves Full Launch monetization, ads can be enabled with:
+
+```bash
+VITE_ENABLE_CG_ADS=true npm run build
+```
+
+The Full Launch provider keeps ad code behind the `VITE_ENABLE_CG_ADS=true` build flag. Do not enable this flag for Basic Launch submissions.
 
 ## CrazyGames Preview Checklist
 
@@ -105,7 +123,7 @@ Ad behavior:
 - Mobile Chrome: touch input, audio unlock, layout.
 - Mobile Safari: touch input, Web Audio resume, visibility changes.
 - SDK missing: localStorage fallback and no crash.
-- Ads unavailable: no freeze and no required reward path.
+- Basic Launch ads disabled: no ad requests, no optional reward buttons, no required reward path.
 - Save/load: current level, coins, hints, skins, settings.
 - Iframe/window sizes: 907x510, 1216x684, 1077x606, 821x462, 1366x768, 1920x1080, 1280x720, 800x450 mobile, 1080x607 tablet.
 
@@ -114,9 +132,13 @@ Ad behavior:
 - Build pass: `npm run build`.
 - Tests pass: `npm run test`.
 - Levels valid and solvable: `npm run validate-levels` reports 50/50 levels.
-- Production dev panel hidden: no `.dev-panel` or dev panel strings in `dist/`.
+- Production dev panel hidden: no `.dev-panel` markup or styles in `dist/`.
 - CrazyGames SDK fallback works: local preview runs without `window.CrazyGames.SDK`.
-- Ads are optional and natural-break only: midgame after level completion, rewarded only from optional user actions.
+- Basic Launch ads disabled by default: `VITE_ENABLE_CG_ADS=false`.
+- Production Basic Launch bundle has no CrazyGames ad SDK request methods.
+- Optional reward UI hidden in Basic Launch.
+- CrazyGames SDK Data save/load fallback works.
+- Ads remain optional/natural-break only when later enabled for approved Full Launch.
 - Mobile/responsive checked: 907x510, 1216x684, 1077x606, 821x462, 1366x768, 1920x1080, 1280x720, 800x450, 1080x607.
 - Production console checked: no app JavaScript errors in local production preview.
 
@@ -125,7 +147,7 @@ Ad behavior:
 Build first:
 
 ```bash
-npm run build
+VITE_ENABLE_CG_ADS=false npm run build
 ```
 
 Create the upload zip from the contents of `dist/`, not from the repository root:
@@ -144,6 +166,7 @@ The zip root should contain `index.html` and the `assets/` folder directly.
 - Initial download target under 50 MB: yes, current JS gzip is about 133 kB.
 - Total bundle target under 250 MB: yes.
 - Relative asset paths: yes, `base: "./"`.
+- Basic Launch ads disabled: yes, default build uses `src/monetization/AdProvider.basic.ts`.
 - No external ad networks: yes.
 - No external portal branding: yes.
 - No app store links: yes.

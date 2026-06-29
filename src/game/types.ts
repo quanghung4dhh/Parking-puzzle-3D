@@ -38,17 +38,17 @@ export type ProgressData = {
 
 export type LanguageCode = "en" | "vi";
 
-export type GameState = "loading" | "playing" | "carMoving" | "menuPaused" | "levelComplete" | "adPaused";
+export type GameState = "loading" | "playing" | "carMoving" | "menuPaused" | "levelComplete" | "breakPaused";
 
 export type AnalyticsEvent =
   | "level_started"
   | "level_completed"
   | "level_restarted"
   | "hint_used"
-  | "rewarded_ad_requested"
-  | "rewarded_ad_completed"
-  | "midgame_ad_requested"
-  | "ad_error";
+  | "optional_reward_requested"
+  | "optional_reward_completed"
+  | "level_break_requested"
+  | "break_error";
 
 export type SkinDefinition = {
   id: string;
@@ -57,7 +57,7 @@ export type SkinDefinition = {
   colors: string[];
 };
 
-export type AdResult =
+export type BreakResult =
   | { status: "finished" }
   | { status: "error"; error?: unknown }
   | { status: "unavailable" };

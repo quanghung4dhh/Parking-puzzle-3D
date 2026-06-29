@@ -1,17 +1,18 @@
 import { CrazyGamesService } from "../crazygames/CrazyGamesService";
 import { AudioManager } from "../game/AudioManager";
-import type { AdResult, AnalyticsEvent } from "../game/types";
+import type { AnalyticsEvent, BreakResult } from "../game/types";
+import { ADS_SUPPORTED, requestLevelBreak, requestOptionalReward } from "#ad-provider";
 
 type AdManagerOptions = {
-  setPausedForAd: (paused: boolean) => void;
+  setPausedForBreak: (paused: boolean) => void;
   track: (event: AnalyticsEvent, data?: Record<string, unknown>) => void;
 };
 
 export class AdManager {
   private gameplayStartedAt = 0;
   private activePlayMs = 0;
-  private requestingAd = false;
-  private lastAdFinishedAt = 0;
+  private requestingBreak = false;
+  private lastBreakFinishedAt = 0;
 
   constructor(
     private readonly crazyGames: CrazyGamesService,
@@ -33,29 +34,31 @@ export class AdManager {
     this.crazyGames.gameplayStop();
   }
 
-  canRewardedAds(): boolean {
-    return this.crazyGames.areAdsAvailable() && !this.requestingAd;
+  canUseOptionalRewards(): boolean {
+    return ADS_SUPPORTED && this.crazyGames.isInitialized() && !this.requestingBreak;
   }
 
-  async requestMidgameAd(reason: string, completedLevel: number): Promise<boolean> {
+  async requestLevelBreak(reason: string, completedLevel: number): Promise<boolean> {
+    if (!ADS_SUPPORTED) return false;
     const now = performance.now();
-    if (this.requestingAd) return false;
-    if (!this.crazyGames.areAdsAvailable()) return false;
+    if (this.requestingBreak) return false;
+    if (!this.crazyGames.isInitialized()) return false;
     if (completedLevel < 3) return false;
     if (this.currentActivePlayMs() < 120000) return false;
-    if (now - this.lastAdFinishedAt < 90000) return false;
+    if (now - this.lastBreakFinishedAt < 90000) return false;
 
-    this.options.track("midgame_ad_requested", { reason, completedLevel });
-    const result = await this.requestAdWithPause(() => this.crazyGames.requestMidgameAd(reason, this.videoCallbacks()));
+    this.options.track("level_break_requested", { reason, completedLevel });
+    const result = await this.requestWithPause(() => requestLevelBreak(this.breakCallbacks()));
     return result.status === "finished";
   }
 
-  async requestRewardedAd(rewardType: string): Promise<boolean> {
-    if (this.requestingAd || !this.crazyGames.areAdsAvailable()) return false;
-    this.options.track("rewarded_ad_requested", { rewardType });
-    const result = await this.requestAdWithPause(() => this.crazyGames.requestRewardedAd(rewardType, this.videoCallbacks()));
+  async requestOptionalReward(rewardType: string): Promise<boolean> {
+    if (!ADS_SUPPORTED) return false;
+    if (this.requestingBreak || !this.crazyGames.isInitialized()) return false;
+    this.options.track("optional_reward_requested", { rewardType });
+    const result = await this.requestWithPause(() => requestOptionalReward(this.breakCallbacks()));
     if (result.status === "finished") {
-      this.options.track("rewarded_ad_completed", { rewardType });
+      this.options.track("optional_reward_completed", { rewardType });
       return true;
     }
     return false;
@@ -65,34 +68,34 @@ export class AdManager {
     return this.activePlayMs + (this.gameplayStartedAt > 0 ? performance.now() - this.gameplayStartedAt : 0);
   }
 
-  private async requestAdWithPause(request: () => Promise<AdResult>): Promise<AdResult> {
-    this.requestingAd = true;
-    this.options.setPausedForAd(true);
+  private async requestWithPause(request: () => Promise<BreakResult>): Promise<BreakResult> {
+    this.requestingBreak = true;
+    this.options.setPausedForBreak(true);
     this.gameplayStop();
     const result = await request();
     if (result.status === "error") {
-      this.options.track("ad_error", { error: String(result.error ?? "unknown") });
+      this.options.track("break_error", { error: String(result.error ?? "unknown") });
     }
     if (result.status === "finished") {
-      this.lastAdFinishedAt = performance.now();
+      this.lastBreakFinishedAt = performance.now();
     }
-    this.audio.setAdMuted(false);
-    this.options.setPausedForAd(false);
-    this.requestingAd = false;
+    this.audio.setBreakMuted(false);
+    this.options.setPausedForBreak(false);
+    this.requestingBreak = false;
     return result;
   }
 
-  private videoCallbacks(): {
-    adStarted: () => void;
-    adFinished: () => void;
-    adError: (error: unknown) => void;
+  private breakCallbacks(): {
+    onStart: () => void;
+    onComplete: () => void;
+    onError: (error: unknown) => void;
   } {
     return {
-      adStarted: () => this.audio.setAdMuted(true),
-      adFinished: () => this.audio.setAdMuted(false),
-      adError: (error: unknown) => {
-        this.audio.setAdMuted(false);
-        this.options.track("ad_error", { error: String(error) });
+      onStart: () => this.audio.setBreakMuted(true),
+      onComplete: () => this.audio.setBreakMuted(false),
+      onError: (error: unknown) => {
+        this.audio.setBreakMuted(false);
+        this.options.track("break_error", { error: String(error) });
       }
     };
   }

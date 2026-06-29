@@ -18,10 +18,10 @@ describe("CrazyGamesService", () => {
     const service = new CrazyGamesService();
 
     await expect(service.initCrazyGamesSdk()).resolves.toBe(false);
-    expect(service.areAdsAvailable()).toBe(false);
     expect(service.getLocale()).toBe("en-US");
-    await expect(service.requestRewardedAd("bonus_coins")).resolves.toEqual({ status: "unavailable" });
     expect(() => {
+      service.loadingStart();
+      service.loadingStop();
       service.gameplayStart();
       service.gameplayStop();
     }).not.toThrow();

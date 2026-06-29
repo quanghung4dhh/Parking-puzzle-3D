@@ -55,7 +55,7 @@ export class Game {
   private activeCars: CarDefinition[] = [];
   private boardGroup: THREE.Group | undefined;
   private state: GameState = "loading";
-  private stateBeforeAd: GameState = "loading";
+  private stateBeforeBreak: GameState = "loading";
   private menuWasPlaying = false;
   private frameHandle = 0;
   private levelAttempts = 0;
@@ -94,44 +94,49 @@ export class Game {
 
   async start(): Promise<void> {
     await this.crazyGames.initCrazyGamesSdk();
-    this.progress = await this.saveManager.loadProgress(this.crazyGames.getLocale());
-    this.progress.currentLevel = this.levelManager.clampLevel(this.progress.currentLevel);
-    document.documentElement.lang = this.progress.language;
+    this.crazyGames.loadingStart();
+    try {
+      this.progress = await this.saveManager.loadProgress(this.crazyGames.getLocale());
+      this.progress.currentLevel = this.levelManager.clampLevel(this.progress.currentLevel);
+      document.documentElement.lang = this.progress.language;
 
-    this.audio.applySettings(this.progress.soundEnabled, this.progress.musicEnabled);
-    this.adManager = new AdManager(this.crazyGames, this.audio, {
-      setPausedForAd: (paused) => this.setPausedForAd(paused),
-      track: (event, data) => this.track(event, data)
-    });
-    this.ui = new UIManager(this.uiRoot, this.progress.language, {
-      onRestart: () => this.restartLevel(),
-      onHint: () => this.useHint(),
-      onOpenShop: () => this.openShop(),
-      onOpenSettings: () => this.openSettings(),
-      onNextLevel: () => void this.nextLevel(),
-      onDoubleCoins: () => void this.doubleCoins(),
-      onClosePanel: () => this.closePanel(),
-      onUnlockSkin: (skinId) => this.unlockSkin(skinId),
-      onSelectSkin: (skinId) => this.selectSkin(skinId),
-      onRewardBonusCoins: () => void this.rewardBonusCoins(),
-      onSoundChanged: (enabled) => this.changeSound(enabled),
-      onMusicChanged: (enabled) => this.changeMusic(enabled),
-      onLanguageChanged: (language) => this.changeLanguage(language)
-    });
-    if (import.meta.env?.DEV) {
-      const { DevPanel } = await import("../ui/DevPanel");
-      this.devPanel = new DevPanel(this.uiRoot, {
-        onPreviousLevel: () => this.loadDevelopmentLevel((this.currentLevel?.id ?? 1) - 1),
-        onNextLevel: () => this.loadDevelopmentLevel((this.currentLevel?.id ?? 1) + 1),
-        onRestartLevel: () => this.restartLevel(),
-        onValidateCurrentLevel: () => this.validateCurrentLevelForDev(),
-        onValidateAllLevels: () => this.validateAllLevelsForDev()
+      this.audio.applySettings(this.progress.soundEnabled, this.progress.musicEnabled);
+      this.adManager = new AdManager(this.crazyGames, this.audio, {
+        setPausedForBreak: (paused) => this.setPausedForBreak(paused),
+        track: (event, data) => this.track(event, data)
       });
-    }
+      this.ui = new UIManager(this.uiRoot, this.progress.language, {
+        onRestart: () => this.restartLevel(),
+        onHint: () => this.useHint(),
+        onOpenShop: () => this.openShop(),
+        onOpenSettings: () => this.openSettings(),
+        onNextLevel: () => void this.nextLevel(),
+        onDoubleCoins: () => void this.doubleCoins(),
+        onClosePanel: () => this.closePanel(),
+        onUnlockSkin: (skinId) => this.unlockSkin(skinId),
+        onSelectSkin: (skinId) => this.selectSkin(skinId),
+        onRewardBonusCoins: () => void this.rewardBonusCoins(),
+        onSoundChanged: (enabled) => this.changeSound(enabled),
+        onMusicChanged: (enabled) => this.changeMusic(enabled),
+        onLanguageChanged: (language) => this.changeLanguage(language)
+      });
+      if (import.meta.env?.DEV) {
+        const { DevPanel } = await import("../ui/DevPanel");
+        this.devPanel = new DevPanel(this.uiRoot, {
+          onPreviousLevel: () => this.loadDevelopmentLevel((this.currentLevel?.id ?? 1) - 1),
+          onNextLevel: () => this.loadDevelopmentLevel((this.currentLevel?.id ?? 1) + 1),
+          onRestartLevel: () => this.restartLevel(),
+          onValidateCurrentLevel: () => this.validateCurrentLevelForDev(),
+          onValidateAllLevels: () => this.validateAllLevelsForDev()
+        });
+      }
 
-    this.loadLevel(this.progress.currentLevel);
-    this.clock.start();
-    this.frameHandle = window.requestAnimationFrame(this.loop);
+      this.loadLevel(this.progress.currentLevel);
+      this.clock.start();
+      this.frameHandle = window.requestAnimationFrame(this.loop);
+    } finally {
+      this.crazyGames.loadingStop();
+    }
   }
 
   private setupScene(): void {
@@ -330,14 +335,14 @@ export class Game {
       coinsEarned,
       totalCoins: this.progress.coins,
       stars,
-      canDouble: this.adManager.canRewardedAds()
+      canDouble: this.adManager.canUseOptionalRewards()
     });
     this.updateHud();
     this.updateDevPanel();
   }
 
   private restartLevel(): void {
-    if (!this.currentLevel || this.state === "adPaused") return;
+    if (!this.currentLevel || this.state === "breakPaused") return;
     this.audio.playClick();
     this.track("level_restarted", { level: this.currentLevel.id });
     this.loadLevel(this.currentLevel.id);
@@ -359,15 +364,15 @@ export class Game {
   private async nextLevel(): Promise<void> {
     if (!this.currentLevel || !this.adManager) return;
     const completedLevel = this.currentLevel.id;
-    await this.adManager.requestMidgameAd("level_complete", completedLevel);
+    await this.adManager.requestLevelBreak("level_complete", completedLevel);
     const nextLevel = this.levelManager.nextLevelId(completedLevel);
     this.loadLevel(nextLevel);
   }
 
   private async doubleCoins(): Promise<void> {
     if (!this.progress || !this.ui || !this.adManager || !this.completion || this.completion.doubled) return;
-    const rewarded = await this.adManager.requestRewardedAd("double_coins");
-    if (!rewarded) return;
+    const granted = await this.adManager.requestOptionalReward("double_coins");
+    if (!granted) return;
     this.progress.coins += this.completion.coinsEarned;
     this.completion.displayedCoinsEarned += this.completion.coinsEarned;
     this.completion.doubled = true;
@@ -377,7 +382,7 @@ export class Game {
   }
 
   private openShop(): void {
-    if (!this.progress || !this.ui || !this.adManager || this.state === "carMoving" || this.state === "adPaused") return;
+    if (!this.progress || !this.ui || !this.adManager || this.state === "carMoving" || this.state === "breakPaused") return;
     this.audio.playClick();
     this.menuWasPlaying = this.state === "playing";
     if (this.menuWasPlaying) {
@@ -385,12 +390,12 @@ export class Game {
       this.adManager.gameplayStop();
       this.inputManager.setEnabled(false);
     }
-    this.ui.showShop(this.progress, this.adManager.canRewardedAds());
+    this.ui.showShop(this.progress, this.adManager.canUseOptionalRewards());
     this.updateHud();
   }
 
   private openSettings(): void {
-    if (!this.progress || !this.ui || !this.adManager || this.state === "carMoving" || this.state === "adPaused") return;
+    if (!this.progress || !this.ui || !this.adManager || this.state === "carMoving" || this.state === "breakPaused") return;
     this.audio.playClick();
     this.menuWasPlaying = this.state === "playing";
     if (this.menuWasPlaying) {
@@ -422,7 +427,7 @@ export class Game {
     this.progress.unlockedSkins.push(skin.id);
     this.progress.selectedSkin = skin.id;
     this.saveManager.saveProgress(this.progress);
-    this.ui.showShop(this.progress, this.adManager.canRewardedAds());
+    this.ui.showShop(this.progress, this.adManager.canUseOptionalRewards());
     this.updateHud();
   }
 
@@ -430,16 +435,16 @@ export class Game {
     if (!this.progress || !this.ui || !this.adManager || !this.progress.unlockedSkins.includes(skinId)) return;
     this.progress.selectedSkin = skinId;
     this.saveManager.saveProgress(this.progress);
-    this.ui.showShop(this.progress, this.adManager.canRewardedAds());
+    this.ui.showShop(this.progress, this.adManager.canUseOptionalRewards());
   }
 
   private async rewardBonusCoins(): Promise<void> {
     if (!this.progress || !this.ui || !this.adManager) return;
-    const rewarded = await this.adManager.requestRewardedAd("bonus_coins");
-    if (!rewarded) return;
+    const granted = await this.adManager.requestOptionalReward("bonus_coins");
+    if (!granted) return;
     this.progress.coins += 75;
     this.saveManager.saveProgress(this.progress);
-    this.ui.showShop(this.progress, this.adManager.canRewardedAds());
+    this.ui.showShop(this.progress, this.adManager.canUseOptionalRewards());
     this.updateHud();
   }
 
@@ -468,7 +473,7 @@ export class Game {
   }
 
   private loadDevelopmentLevel(levelId: number): void {
-    if (!this.progress || this.state === "adPaused" || this.state === "carMoving") return;
+    if (!this.progress || this.state === "breakPaused" || this.state === "carMoving") return;
     this.audio.playClick();
     this.loadLevel(this.levelManager.clampLevel(levelId));
   }
@@ -542,16 +547,16 @@ export class Game {
     });
   }
 
-  private setPausedForAd(paused: boolean): void {
+  private setPausedForBreak(paused: boolean): void {
     if (!this.ui) return;
     if (paused) {
-      this.stateBeforeAd = this.state;
-      this.state = "adPaused";
+      this.stateBeforeBreak = this.state;
+      this.state = "breakPaused";
       this.inputManager.setEnabled(false);
-      this.ui.setAdBusy(true);
+      this.ui.setBreakBusy(true);
     } else {
-      this.state = this.stateBeforeAd;
-      this.ui.setAdBusy(false);
+      this.state = this.stateBeforeBreak;
+      this.ui.setBreakBusy(false);
       this.inputManager.setEnabled(this.state === "playing");
       if (this.state === "playing") {
         this.adManager?.gameplayStart();

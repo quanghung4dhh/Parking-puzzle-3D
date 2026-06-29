@@ -304,7 +304,7 @@ input {
   font-weight: 800;
 }
 
-.ad-overlay {
+.break-overlay {
   position: absolute;
   inset: 0;
   display: grid;
@@ -313,7 +313,7 @@ input {
   pointer-events: auto;
 }
 
-.ad-box {
+.break-box {
   min-width: 180px;
   border-radius: 8px;
   padding: 14px 18px;

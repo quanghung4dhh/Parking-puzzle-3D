@@ -11,6 +11,9 @@
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "Bundler",
+    "paths": {
+      "#ad-provider": ["./src/monetization/AdProvider.basic.ts"]
+    },
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,

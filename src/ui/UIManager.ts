@@ -64,8 +64,8 @@ export class UIManager {
   private readonly soundToggle: HTMLInputElement;
   private readonly musicToggle: HTMLInputElement;
   private readonly languageSelect: HTMLSelectElement;
-  private readonly adOverlay: HTMLElement;
-  private readonly adOverlayText: HTMLElement;
+  private readonly breakOverlay: HTMLElement;
+  private readonly breakOverlayText: HTMLElement;
   private lastHud: HudState | undefined;
 
   constructor(
@@ -103,8 +103,8 @@ export class UIManager {
     this.soundToggle = this.get("#sound-toggle");
     this.musicToggle = this.get("#music-toggle");
     this.languageSelect = this.get("#language-select");
-    this.adOverlay = this.get("#ad-overlay");
-    this.adOverlayText = this.get("#ad-overlay-text");
+    this.breakOverlay = this.get("#break-overlay");
+    this.breakOverlayText = this.get("#break-overlay-text");
 
     this.bindEvents();
     this.populateLanguages();
@@ -155,13 +155,13 @@ export class UIManager {
     this.completeModal.hidden = true;
   }
 
-  showShop(progress: ProgressData, rewardedAvailable: boolean): void {
+  showShop(progress: ProgressData, optionalRewardAvailable: boolean): void {
     this.shopTitle.textContent = translate(this.language, "shop");
     this.shopCoins.textContent = `${translate(this.language, "coins")}: ${progress.coins}`;
     this.renderSkins(progress);
-    this.bonusCoinsButton.textContent = translate(this.language, rewardedAvailable ? "bonusCoins" : "adsUnavailable");
-    this.bonusCoinsButton.hidden = !rewardedAvailable;
-    this.bonusCoinsButton.disabled = !rewardedAvailable;
+    this.bonusCoinsButton.textContent = translate(this.language, "bonusCoins");
+    this.bonusCoinsButton.hidden = !optionalRewardAvailable;
+    this.bonusCoinsButton.disabled = !optionalRewardAvailable;
     this.shopModal.hidden = false;
   }
 
@@ -181,9 +181,9 @@ export class UIManager {
     this.settingsModal.hidden = true;
   }
 
-  setAdBusy(busy: boolean): void {
-    this.adOverlay.hidden = !busy;
-    this.adOverlayText.textContent = translate(this.language, "adLoading");
+  setBreakBusy(busy: boolean): void {
+    this.breakOverlay.hidden = !busy;
+    this.breakOverlayText.textContent = translate(this.language, "breakLoading");
     this.restartButton.disabled = busy;
     this.hintButton.disabled = busy || (this.lastHud?.hints ?? 0) <= 0;
     this.shopButton.disabled = busy;
@@ -354,8 +354,8 @@ export class UIManager {
         </div>
       </section>
 
-      <section class="ad-overlay" id="ad-overlay" hidden aria-live="polite">
-        <div class="ad-box" id="ad-overlay-text"></div>
+      <section class="break-overlay" id="break-overlay" hidden aria-live="polite">
+        <div class="break-box" id="break-overlay-text"></div>
       </section>
     `;
   }
