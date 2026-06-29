@@ -39,6 +39,8 @@ export class Game {
   private readonly audio = new AudioManager();
   private readonly clock = new THREE.Clock();
   private readonly raycastCars = new Map<string, Car>();
+  private readonly busyCarIds = new Set<string>();
+  private readonly exitingCarIds = new Set<string>();
   private readonly confettiGeometry = new THREE.BoxGeometry(0.08, 0.025, 0.14);
   private readonly confettiMaterials = ["#ff595e", "#ffca3a", "#8ac926", "#1982c4", "#6a4c93"].map(
     (color) => new THREE.MeshBasicMaterial({ color })
@@ -77,7 +79,7 @@ export class Game {
     this.inputManager = new InputManager(
       this.renderer.domElement,
       this.cameraController.camera,
-      () => this.raycastCars.values(),
+      () => this.selectableCars(),
       (carId) => this.handleCarSelected(carId),
       () => this.audio.unlock()
     );
@@ -235,25 +237,36 @@ export class Game {
     if (this.state !== "playing" || !this.grid || !this.currentLevel) return;
     const carDefinition = this.activeCars.find((car) => car.id === carId);
     const car = this.raycastCars.get(carId);
-    if (!carDefinition || !car) return;
+    if (!carDefinition || !car || this.busyCarIds.has(carId)) return;
 
     this.levelAttempts += 1;
     this.audio.playClick();
     const path = this.grid.canCarExit(carDefinition, this.activeCars);
-    this.state = "carMoving";
-    this.inputManager.setEnabled(false);
-    this.updateHud();
 
     if (path.canExit) {
+      this.busyCarIds.add(carId);
+      this.exitingCarIds.add(carId);
       car.setHinted(false);
+      this.activeCars = this.activeCars.filter((definition) => definition.id !== carId);
+      this.grid.rebuild(this.activeCars);
+      if (this.hintCarId === carId) {
+        this.setHint(undefined, 0);
+      }
+      if (this.activeCars.length === 0) {
+        this.state = "carMoving";
+        this.inputManager.setEnabled(false);
+      }
+      this.updateHud();
+      this.updateDevPanel();
       car.moveOut(() => this.finishCarExit(carId));
     } else {
+      this.busyCarIds.add(carId);
       this.audio.playBump();
       car.bump(() => {
-        if (this.state === "carMoving") {
-          this.state = "playing";
-          this.inputManager.setEnabled(true);
+        this.busyCarIds.delete(carId);
+        if (this.state === "playing") {
           this.updateHud();
+          this.updateDevPanel();
         }
       });
     }
@@ -268,20 +281,19 @@ export class Game {
       this.raycastCars.delete(carId);
     }
 
-    this.activeCars = this.activeCars.filter((definition) => definition.id !== carId);
-    this.grid.rebuild(this.activeCars);
+    this.busyCarIds.delete(carId);
+    this.exitingCarIds.delete(carId);
     this.audio.playExit();
 
-    if (this.activeCars.length === 0) {
+    if (this.activeCars.length === 0 && this.exitingCarIds.size === 0) {
       this.completeLevel();
       return;
     }
 
-    if (this.hintCarId === carId) {
-      this.setHint(undefined, 0);
+    if (this.state === "carMoving" && this.activeCars.length > 0) {
+      this.state = "playing";
+      this.inputManager.setEnabled(true);
     }
-    this.state = "playing";
-    this.inputManager.setEnabled(true);
     this.updateHud();
     this.updateDevPanel();
   }
@@ -497,6 +509,11 @@ export class Game {
     this.raycastCars.forEach((car) => car.setHinted(car.id === carId));
   }
 
+  private selectableCars(): Car[] {
+    const activeIds = new Set(this.activeCars.map((car) => car.id));
+    return [...this.raycastCars.values()].filter((car) => activeIds.has(car.id) && !this.busyCarIds.has(car.id));
+  }
+
   private updateHud(): void {
     if (!this.ui || !this.progress || !this.currentLevel) return;
     this.ui.updateHud({
@@ -583,6 +600,8 @@ export class Game {
       car.dispose();
     });
     this.raycastCars.clear();
+    this.busyCarIds.clear();
+    this.exitingCarIds.clear();
     this.particles.splice(0).forEach((particle) => this.scene.remove(particle.mesh));
   }
 

@@ -43,7 +43,8 @@ npm run validate-levels
 - Difficulty bands: Levels 1-5 tutorial, 6-15 easy, 16-30 medium, 31-45 hard, 46-50 expert.
 - Level 1 starts with a pulsing first-car hint.
 - Desktop and mobile pointer/touch controls.
-- Deterministic grid path checks with one moving car at a time.
+- Rapid taps can send multiple clear-path cars out without waiting for each animation to finish.
+- Deterministic grid path checks with overlapping exit animations.
 - Coins, hints, cosmetic skins, settings, and language persistence.
 - English and Vietnamese localization.
 - Dev-only testing panel in Vite development mode with level navigation, validation buttons, FPS, solution length, solvability, and difficulty score.
