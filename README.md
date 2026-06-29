@@ -22,9 +22,9 @@ The production output is written to `dist/` with relative asset paths from `vite
 
 Current verified build:
 
-- HTML: 0.60 kB
-- CSS: 6.27 kB minified, 1.91 kB gzip
-- JS: 526.59 kB minified, 133.22 kB gzip
+- HTML: 0.63 kB
+- CSS: 4.90 kB minified, 1.61 kB gzip
+- JS: 526.88 kB minified, 133.28 kB gzip
 
 ## Test And Validate
 
@@ -108,6 +108,34 @@ Ad behavior:
 - Ads unavailable: no freeze and no required reward path.
 - Save/load: current level, coins, hints, skins, settings.
 - Iframe/window sizes: 907x510, 1216x684, 1077x606, 821x462, 1366x768, 1920x1080, 1280x720, 800x450 mobile, 1080x607 tablet.
+
+## Final Release Checklist
+
+- Build pass: `npm run build`.
+- Tests pass: `npm run test`.
+- Levels valid and solvable: `npm run validate-levels` reports 50/50 levels.
+- Production dev panel hidden: no `.dev-panel` or dev panel strings in `dist/`.
+- CrazyGames SDK fallback works: local preview runs without `window.CrazyGames.SDK`.
+- Ads are optional and natural-break only: midgame after level completion, rewarded only from optional user actions.
+- Mobile/responsive checked: 907x510, 1216x684, 1077x606, 821x462, 1366x768, 1920x1080, 1280x720, 800x450, 1080x607.
+- Production console checked: no app JavaScript errors in local production preview.
+
+## Zip Packaging
+
+Build first:
+
+```bash
+npm run build
+```
+
+Create the upload zip from the contents of `dist/`, not from the repository root:
+
+```bash
+cd dist
+zip -r ../parking-puzzle-3d-crazygames.zip .
+```
+
+The zip root should contain `index.html` and the `assets/` folder directly.
 
 ## Compliance Checklist
 

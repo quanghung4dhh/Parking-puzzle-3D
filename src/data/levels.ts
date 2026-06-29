@@ -231,7 +231,7 @@ function generateLevel(recipe: LevelRecipe): LevelDefinition {
 const LEVELS = RECIPES.map(generateLevel);
 const validation = validateAllLevels(LEVELS);
 
-if (!validation.valid) {
+if (import.meta.env?.DEV && !validation.valid) {
   console.warn("[levels] Validation failed", validation.errors);
 }
 

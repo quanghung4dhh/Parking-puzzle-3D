@@ -2,8 +2,8 @@ import * as THREE from "three";
 import { CrazyGamesService } from "../crazygames/CrazyGamesService";
 import { getSkin, SKINS } from "../data/skins";
 import { AdManager } from "../monetization/AdManager";
-import { DevPanel } from "../ui/DevPanel";
 import { UIManager } from "../ui/UIManager";
+import type { DevPanel } from "../ui/DevPanel";
 import { AudioManager } from "./AudioManager";
 import { CameraController } from "./CameraController";
 import { Car } from "./Car";
@@ -118,7 +118,8 @@ export class Game {
       onMusicChanged: (enabled) => this.changeMusic(enabled),
       onLanguageChanged: (language) => this.changeLanguage(language)
     });
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV) {
+      const { DevPanel } = await import("../ui/DevPanel");
       this.devPanel = new DevPanel(this.uiRoot, {
         onPreviousLevel: () => this.loadDevelopmentLevel((this.currentLevel?.id ?? 1) - 1),
         onNextLevel: () => this.loadDevelopmentLevel((this.currentLevel?.id ?? 1) + 1),
@@ -668,6 +669,8 @@ export class Game {
   };
 
   private track(event: AnalyticsEvent, data: Record<string, unknown> = {}): void {
-    console.info(`[Analytics] ${event}`, data);
+    if (import.meta.env?.DEV) {
+      console.info(`[Analytics] ${event}`, data);
+    }
   }
 }

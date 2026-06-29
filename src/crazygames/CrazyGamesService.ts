@@ -30,7 +30,7 @@ export class CrazyGamesService {
   private sdk: CrazyGamesSdk | undefined;
   private initialized = false;
   private gameplayActive = false;
-  private readonly isDevelopment = import.meta.env.DEV;
+  private readonly isDevelopment = import.meta.env?.DEV ?? false;
 
   async initCrazyGamesSdk(): Promise<boolean> {
     const candidate = window.CrazyGames?.SDK ?? window.Crazygames?.SDK;

@@ -7,10 +7,12 @@ export class LevelManager {
   constructor() {
     this.levels = levels;
     const validation = validateAllLevels(this.levels);
-    if (!validation.valid) {
-      console.warn("[LevelManager] Level validation errors", validation.errors);
-    } else {
-      console.info(`[LevelManager] ${this.levels.length} levels validated.`);
+    if (import.meta.env?.DEV) {
+      if (!validation.valid) {
+        console.warn("[LevelManager] Level validation errors", validation.errors);
+      } else {
+        console.info(`[LevelManager] ${this.levels.length} levels validated.`);
+      }
     }
   }
 
