@@ -133,7 +133,7 @@ export class UIManager {
   showComplete(state: CompleteState): void {
     this.completeTitle.textContent = translate(this.language, "levelComplete");
     this.completeSubtitle.textContent = translate(this.language, "completeSubtitle");
-    this.completeStars.textContent = `${translate(this.language, "stars")}: ${"*".repeat(state.stars)}`;
+    this.completeStars.textContent = `${translate(this.language, "stars")}: ${"\u2605".repeat(state.stars)}`;
     this.completeCoins.textContent = `${translate(this.language, "coinsEarned")}: ${state.coinsEarned}`;
     this.completeTotalCoins.textContent = `${translate(this.language, "coins")}: ${state.totalCoins}`;
     this.nextButton.textContent =
