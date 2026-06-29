@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { CrazyGamesService } from "../crazygames/CrazyGamesService";
 import { getSkin, SKINS } from "../data/skins";
 import { AdManager } from "../monetization/AdManager";
+import { DevPanel } from "../ui/DevPanel";
 import { UIManager } from "../ui/UIManager";
 import { AudioManager } from "./AudioManager";
 import { CameraController } from "./CameraController";
@@ -9,6 +10,8 @@ import { Car } from "./Car";
 import { Grid } from "./Grid";
 import { InputManager } from "./InputManager";
 import { LevelManager } from "./LevelManager";
+import { applyCompletionReward, calculateCompletionReward } from "./LevelRewards";
+import { validateAllLevels, validateLevel } from "./LevelValidator";
 import { SaveManager } from "./SaveManager";
 import type { AnalyticsEvent, CarDefinition, GameState, LanguageCode, LevelDefinition, ProgressData } from "./types";
 
@@ -43,6 +46,7 @@ export class Game {
   private readonly particles: ConfettiParticle[] = [];
   private adManager: AdManager | undefined;
   private ui: UIManager | undefined;
+  private devPanel: DevPanel | undefined;
   private progress: ProgressData | undefined;
   private currentLevel: LevelDefinition | undefined;
   private grid: Grid | undefined;
@@ -56,6 +60,8 @@ export class Game {
   private hintCarId: string | undefined;
   private hintTimer = 0;
   private completion: CompletionState | undefined;
+  private fpsEstimate = 0;
+  private devPanelTimer = 0;
 
   constructor(
     private readonly gameRoot: HTMLElement,
@@ -110,6 +116,15 @@ export class Game {
       onMusicChanged: (enabled) => this.changeMusic(enabled),
       onLanguageChanged: (language) => this.changeLanguage(language)
     });
+    if (import.meta.env.DEV) {
+      this.devPanel = new DevPanel(this.uiRoot, {
+        onPreviousLevel: () => this.loadDevelopmentLevel((this.currentLevel?.id ?? 1) - 1),
+        onNextLevel: () => this.loadDevelopmentLevel((this.currentLevel?.id ?? 1) + 1),
+        onRestartLevel: () => this.restartLevel(),
+        onValidateCurrentLevel: () => this.validateCurrentLevelForDev(),
+        onValidateAllLevels: () => this.validateAllLevelsForDev()
+      });
+    }
 
     this.loadLevel(this.progress.currentLevel);
     this.clock.start();
@@ -160,6 +175,7 @@ export class Game {
     this.inputManager.setEnabled(true);
     this.adManager.gameplayStart();
     this.track("level_started", { level: this.currentLevel.id, cars: this.activeCars.length });
+    this.updateDevPanel();
   }
 
   private buildBoard(level: LevelDefinition): void {
@@ -267,21 +283,15 @@ export class Game {
     this.state = "playing";
     this.inputManager.setEnabled(true);
     this.updateHud();
+    this.updateDevPanel();
   }
 
   private completeLevel(): void {
     if (!this.progress || !this.currentLevel || !this.ui || !this.adManager) return;
 
-    const targetAttempts = this.currentLevel.cars.length + Math.ceil(this.currentLevel.id / 15);
-    const stars = this.levelAttempts <= targetAttempts ? 3 : this.levelAttempts <= targetAttempts + 3 ? 2 : 1;
-    const coinsEarned = 10 + stars * 5 + Math.min(20, Math.floor(this.currentLevel.id / 2));
-    this.progress.coins += coinsEarned;
-    if (!this.progress.completedLevels.includes(this.currentLevel.id)) {
-      this.progress.completedLevels.push(this.currentLevel.id);
-    }
-    if (this.currentLevel.id % 5 === 0) {
-      this.progress.hints += 1;
-    }
+    const reward = calculateCompletionReward(this.currentLevel, this.levelAttempts);
+    const { coinsEarned, stars } = reward;
+    applyCompletionReward(this.progress, this.currentLevel, reward);
     this.saveManager.saveProgress(this.progress);
 
     this.completion = {
@@ -310,6 +320,7 @@ export class Game {
       canDouble: this.adManager.canRewardedAds()
     });
     this.updateHud();
+    this.updateDevPanel();
   }
 
   private restartLevel(): void {
@@ -443,6 +454,32 @@ export class Game {
     this.updateHud();
   }
 
+  private loadDevelopmentLevel(levelId: number): void {
+    if (!this.progress || this.state === "adPaused" || this.state === "carMoving") return;
+    this.audio.playClick();
+    this.loadLevel(this.levelManager.clampLevel(levelId));
+  }
+
+  private validateCurrentLevelForDev(): void {
+    if (!this.currentLevel || !this.devPanel) return;
+    const result = validateLevel(this.currentLevel);
+    this.devPanel.setMessage(
+      result.valid ? `Level ${this.currentLevel.id} valid, score ${result.difficulty.score}.` : result.errors.join(" "),
+      result.valid ? "success" : "error"
+    );
+    this.updateDevPanel();
+  }
+
+  private validateAllLevelsForDev(): void {
+    if (!this.devPanel) return;
+    const result = validateAllLevels(this.levelManager.levels);
+    this.devPanel.setMessage(
+      result.valid ? `${this.levelManager.totalLevels} levels valid.` : `${result.errors.length} validation error(s).`,
+      result.valid ? "success" : "error"
+    );
+    this.updateDevPanel();
+  }
+
   private recommendedCarId(): string | undefined {
     if (!this.currentLevel || !this.grid) return undefined;
     for (const carId of this.currentLevel.hintOrder ?? []) {
@@ -469,6 +506,21 @@ export class Game {
       hints: this.progress.hints,
       showInstruction: this.currentLevel.id <= 3 && this.state === "playing",
       busy: this.state !== "playing"
+    });
+  }
+
+  private updateDevPanel(): void {
+    if (!this.devPanel || !this.currentLevel) return;
+    const result = validateLevel(this.currentLevel);
+    this.devPanel.update({
+      level: this.currentLevel.id,
+      totalLevels: this.levelManager.totalLevels,
+      carCount: this.activeCars.length,
+      difficultyScore: result.difficulty.score,
+      difficultyTier: result.difficulty.tier,
+      solutionLength: result.solution.length,
+      solvable: result.solvable,
+      fps: this.fpsEstimate
     });
   }
 
@@ -567,6 +619,15 @@ export class Game {
         }
       }
       this.updateParticles(deltaSeconds);
+      if (this.devPanel) {
+        const instantFps = deltaSeconds > 0 ? 1 / deltaSeconds : 0;
+        this.fpsEstimate = this.fpsEstimate === 0 ? instantFps : this.fpsEstimate * 0.9 + instantFps * 0.1;
+        this.devPanelTimer += deltaSeconds;
+        if (this.devPanelTimer >= 0.4) {
+          this.devPanelTimer = 0;
+          this.updateDevPanel();
+        }
+      }
       this.renderer.render(this.scene, this.cameraController.camera);
     }
     this.frameHandle = window.requestAnimationFrame(this.loop);

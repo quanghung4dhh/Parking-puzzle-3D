@@ -1,4 +1,5 @@
 import type { CarDefinition, Direction, ExitDefinition, LevelDefinition } from "../game/types";
+import { validateAllLevels } from "../game/LevelValidator";
 
 type LevelRecipe = {
   id: number;
@@ -227,76 +228,6 @@ function generateLevel(recipe: LevelRecipe): LevelDefinition {
   };
 }
 
-function carCanExit(car: CarDefinition, cars: CarDefinition[], level: LevelDefinition): boolean {
-  if (!hasExit(level.exits, car)) return false;
-  const occupancy = buildOccupancy(cars.filter((other) => other.id !== car.id));
-  return pathCellsAhead(car, level.width, level.height).every((cell) => !occupancy.has(key(cell.x, cell.y)));
-}
-
-function validatePlacement(level: LevelDefinition): string[] {
-  const errors: string[] = [];
-  const occupancy = new Map<string, string>();
-  for (const car of level.cars) {
-    if (!inBounds(car, level.width, level.height)) {
-      errors.push(`Level ${level.id}: ${car.id} is out of bounds.`);
-    }
-    if (!hasExit(level.exits, car)) {
-      errors.push(`Level ${level.id}: ${car.id} has no matching exit.`);
-    }
-    for (const cell of occupiedCells(car)) {
-      const cellKey = key(cell.x, cell.y);
-      const existing = occupancy.get(cellKey);
-      if (existing) {
-        errors.push(`Level ${level.id}: ${car.id} overlaps ${existing} at ${cellKey}.`);
-      }
-      occupancy.set(cellKey, car.id);
-    }
-  }
-  return errors;
-}
-
-export function validateLevel(level: LevelDefinition): { valid: boolean; errors: string[]; solution: string[] } {
-  const errors = validatePlacement(level);
-  const remaining = level.cars.map((car) => ({ ...car }));
-  const solution: string[] = [];
-  const order = level.hintOrder ?? [];
-
-  for (const carId of order) {
-    const index = remaining.findIndex((car) => car.id === carId);
-    if (index < 0) {
-      errors.push(`Level ${level.id}: ${carId} appears in hintOrder but is not active.`);
-      continue;
-    }
-    const car = remaining[index];
-    if (!carCanExit(car, remaining, level)) {
-      errors.push(`Level ${level.id}: ${car.id} is blocked at its hinted turn.`);
-      break;
-    }
-    solution.push(car.id);
-    remaining.splice(index, 1);
-  }
-
-  let guard = 0;
-  while (remaining.length > 0 && guard < level.cars.length * 2) {
-    guard += 1;
-    const movableIndex = remaining.findIndex((car) => carCanExit(car, remaining, level));
-    if (movableIndex < 0) break;
-    solution.push(remaining[movableIndex].id);
-    remaining.splice(movableIndex, 1);
-  }
-
-  if (remaining.length > 0) {
-    errors.push(`Level ${level.id}: ${remaining.length} car(s) cannot be solved by hints or greedy fallback.`);
-  }
-
-  return { valid: errors.length === 0, errors, solution };
-}
-
-export function validateAllLevels(levelsToValidate: LevelDefinition[] = LEVELS): { valid: boolean; errors: string[] } {
-  const errors = levelsToValidate.flatMap((level) => validateLevel(level).errors);
-  return { valid: errors.length === 0, errors };
-}
-
 const LEVELS = RECIPES.map(generateLevel);
 const validation = validateAllLevels(LEVELS);
 
@@ -305,3 +236,4 @@ if (!validation.valid) {
 }
 
 export const levels: LevelDefinition[] = LEVELS;
+export { calculateDifficulty, solveLevel, validateAllLevels, validateLevel } from "../game/LevelValidator";

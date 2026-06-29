@@ -1,6 +1,6 @@
 # Parking Puzzle 3D
 
-A lightweight TypeScript + Vite + Three.js browser game prepared for CrazyGames submission. Players clear a compact 3D parking lot by tapping cars that can drive straight out through their lane exit.
+A lightweight HTML5/WebGL parking puzzle made with TypeScript, Vite, and Three.js for CrazyGames submission. Players clear a compact 3D parking lot by tapping cars that can drive straight out through their lane exit.
 
 ## Run Locally
 
@@ -9,12 +9,13 @@ npm install
 npm run dev
 ```
 
-The dev server prints a local URL. The game is also safe to run without the CrazyGames SDK; SDK calls fall back to console logging and localStorage.
+The dev server prints a local URL. The game is safe to run without the CrazyGames SDK; SDK calls fall back to local behavior and development logs.
 
-## Build
+## Build And Preview
 
 ```bash
 npm run build
+npm run preview
 ```
 
 The production output is written to `dist/` with relative asset paths from `vite.config.ts`.
@@ -22,22 +23,59 @@ The production output is written to `dist/` with relative asset paths from `vite
 Current verified build:
 
 - HTML: 0.60 kB
-- CSS: 4.90 kB minified, 1.61 kB gzip
-- JS: 521.10 kB minified, 131.59 kB gzip
+- CSS: 6.27 kB minified, 1.91 kB gzip
+- JS: 526.59 kB minified, 133.22 kB gzip
 
-## Gameplay
+## Test And Validate
 
-- 50 generated, solvable levels.
-- Level 1 starts immediately with a pulsing first-car hint.
+```bash
+npm run test
+npm run validate-levels
+```
+
+`npm run test` runs Vitest coverage for level validation, Grid path checks, level completion rewards, save/load normalization, CrazyGames SDK fallback, and ad-unavailable fallback.
+
+`npm run validate-levels` runs `scripts/validate-levels.ts`. It validates all generated levels, prints difficulty and solution length, and exits with a non-zero code if any level is invalid or unsolvable.
+
+## Gameplay Features
+
+- 50 deterministic generated levels.
+- Difficulty bands: Levels 1-5 tutorial, 6-15 easy, 16-30 medium, 31-45 hard, 46-50 expert.
+- Level 1 starts with a pulsing first-car hint.
 - Desktop and mobile pointer/touch controls.
-- Deterministic grid path checks.
-- One moving car at a time.
-- Smooth delta-time based movement and bump feedback.
+- Deterministic grid path checks with one moving car at a time.
 - Coins, hints, cosmetic skins, settings, and language persistence.
+- English and Vietnamese localization.
+- Dev-only testing panel in Vite development mode with level navigation, validation buttons, FPS, solution length, solvability, and difficulty score.
+
+## Important Files
+
+- Levels and generation: `src/data/levels.ts`
+- Level solving, validation, and difficulty: `src/game/LevelValidator.ts`
+- Level validation CLI: `scripts/validate-levels.ts`
+- Gameplay loop and state: `src/game/Game.ts`
+- Grid exit/path logic: `src/game/Grid.ts`
+- Level rewards: `src/game/LevelRewards.ts`
+- Save/load normalization: `src/game/SaveManager.ts`
+- UI and dev panel: `src/ui/UIManager.ts`, `src/ui/DevPanel.ts`
+- CrazyGames SDK wrapper: `src/crazygames/CrazyGamesService.ts`
+- Ad gating and pause handling: `src/monetization/AdManager.ts`
+
+## Adding Levels Safely
+
+Levels are generated from recipes in `src/data/levels.ts`. To expand or rebalance levels:
+
+1. Add or adjust a recipe id, board size, car count, and seed.
+2. Keep level ids sequential.
+3. Run `npm run validate-levels`.
+4. Run `npm run test`.
+5. Run `npm run build`.
+
+The validator checks grid bounds, duplicate or overlapping cars, valid directions, valid boundary exits, matching exits for every car, solvability, solution order, and difficulty metadata.
 
 ## CrazyGames SDK Notes
 
-The SDK wrapper lives in `src/crazygames/CrazyGamesService.ts` and exposes:
+The SDK wrapper exposes:
 
 - `initCrazyGamesSdk()`
 - `gameplayStart()`
@@ -48,55 +86,40 @@ The SDK wrapper lives in `src/crazygames/CrazyGamesService.ts` and exposes:
 - `loadProgress()`
 - `getLocale()`
 
-If `window.CrazyGames.SDK` is missing or incomplete, the game continues with localStorage saves, hidden rewarded buttons, and development console logs.
+If `window.CrazyGames.SDK` is missing or incomplete, the game continues with localStorage saves, hidden rewarded buttons, and development logs.
 
 Ad behavior:
 
 - Midgame ads are requested only after level completion.
 - No midgame ad is requested before Level 3 completion or before 2 minutes of active play.
-- Rewarded ads are user-initiated only from level complete or shop screens.
+- Rewarded ads are user-initiated only from optional rewards such as double coins or bonus shop coins.
 - Gameplay/input is paused while ads are requested or shown.
 - Audio is muted only after `adStarted` and restored after `adFinished` or `adError`.
 - Ads are never required to solve or progress.
+- No external ad networks are used.
 
-## Responsiveness Testing
-
-Test these iframe/window sizes:
-
-- 907x510
-- 1216x684
-- 1077x606
-- 821x462
-- 1366x768
-- 1920x1080
-- 1280x720
-- 800x450 mobile
-- 1080x607 tablet
-
-Suggested browser plan:
+## CrazyGames Preview Checklist
 
 - Desktop Chrome: controls, save/load, build output.
 - Mobile Chrome: touch input, audio unlock, layout.
 - Mobile Safari: touch input, Web Audio resume, visibility changes.
-- SDK missing: localStorage fallback, hidden rewarded buttons.
-- Ads unavailable: no freeze, no required reward path.
+- SDK missing: localStorage fallback and no crash.
+- Ads unavailable: no freeze and no required reward path.
 - Save/load: current level, coins, hints, skins, settings.
-- Level solvability: `validateAllLevels()` in `src/data/levels.ts` validates generated hint order and greedy fallback logic.
+- Iframe/window sizes: 907x510, 1216x684, 1077x606, 821x462, 1366x768, 1920x1080, 1280x720, 800x450 mobile, 1080x607 tablet.
 
 ## Compliance Checklist
 
 - HTML5/WebGL game: yes.
 - Tech stack: TypeScript, Vite, Three.js.
-- Initial download target under 50 MB: yes, current JS gzip is about 132 kB.
+- Initial download target under 50 MB: yes, current JS gzip is about 133 kB.
 - Total bundle target under 250 MB: yes.
-- File count target under 1500: yes.
 - Relative asset paths: yes, `base: "./"`.
 - No external ad networks: yes.
 - No external portal branding: yes.
 - No app store links: yes.
 - No custom fullscreen button: yes.
 - English fallback localization: yes.
-- Vietnamese localization: included.
 - CrazyGames locale usage: yes, falls back to browser locale.
 - Save progress: CrazyGames Data adapter plus localStorage fallback.
 - Mobile support: pointer/touch controls and responsive HUD.
@@ -104,6 +127,6 @@ Suggested browser plan:
 
 ## Known Limitations
 
-- Levels are generated from deterministic recipes, not hand-authored puzzles. The generator validates solvability and can be expanded to 200+ levels by adding recipes.
+- Levels are generated from deterministic recipes, not hand-authored puzzles.
 - Cosmetic skins recolor future level loads; they do not repaint already loaded cars until the next level or restart.
 - CrazyGames SDK behavior can only be fully tested inside the CrazyGames environment or with a compatible SDK mock.
